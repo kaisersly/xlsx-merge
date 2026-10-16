@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>XlsxMerge</RootNamespace>
+    <AssemblyName>XlsxMerge</AssemblyName>
+    <Description>Mail-merge for .xlsx templates using ClosedXML.</Description>
+    <!-- Copies ClosedXML & co. into bin/: needed by the Python wrapper (pythonnet). -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="XlsxMerge.Tests" />
+    <InternalsVisibleTo Include="xlsx-merge" />
+  </ItemGroup>
+
+</Project>

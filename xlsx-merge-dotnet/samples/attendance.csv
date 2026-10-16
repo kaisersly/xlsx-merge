@@ -1,0 +1,11 @@
+[globals]
+COURSE;Advanced Excel
+DATE;2024-06-01
+ROOM;B12
+
+[rows]
+EMPLOYEE_ID;NAME;SCORE
+42;Alice;17.5
+43;Bob;8
+44;Carol;13.25
+45;Dan;
