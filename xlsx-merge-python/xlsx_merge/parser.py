@@ -21,7 +21,7 @@ from __future__ import annotations
 import pathlib
 from typing import Dict, List, Tuple
 
-__all__ = ["CsvParseError", "parse_csv", "parse_file"]
+__all__ = ["CsvParseError", "parse_csv", "parse_file", "read_records"]
 
 
 class CsvParseError(ValueError):
@@ -48,7 +48,7 @@ def parse_csv(text: str, delimiter: str = ";") -> Tuple[Dict[str, str], List[Dic
     if len(delimiter) != 1:
         raise CsvParseError("The delimiter must be a single character (e.g. ';').")
 
-    records = _read_records(text, delimiter)
+    records = read_records(text, delimiter)
 
     globals_: Dict[str, str] = {}
     rows: List[Dict[str, str]] = []
@@ -133,9 +133,10 @@ def _normalize_key(key: str, line_number: int) -> str:
     return normalized
 
 
-def _read_records(text: str, delimiter: str) -> List[Tuple[int, List[str]]]:
+def read_records(text: str, delimiter: str = ";") -> List[Tuple[int, List[str]]]:
     """RFC 4180 CSV parsing: quotes, doubled quotes, multi-line fields.
 
+    Public utility (reused by applications building their own data readers).
     Returns a list of ``(start line number, fields)``.
     """
     records: List[Tuple[int, List[str]]] = []
