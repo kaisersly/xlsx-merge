@@ -46,6 +46,12 @@ By default it is the row containing the **largest number of distinct row fields*
 (ambiguity ⇒ explicit error asking for `--marker`). The marker field can be forced with
 `MergeOptions.RowMarkerField` / `--marker EMPLOYEE_ID`.
 
+A sheet **may not contain any marker row** (cover page, legend…): in that case only the
+global fields are substituted on that sheet — no block expansion, the structure is left
+untouched. This is also what happens when the data set defines no row field at all.
+A forced marker (`RowMarkerField`) is still an error when missing, since it was asked for
+explicitly.
+
 ## Data format (sections `[globals]` / `[rows]`)
 
 ```csv
@@ -98,6 +104,30 @@ XlsxMerger.RenderFile("template.xlsx", "output.xlsx", data, new MergeOptions
 
 `XlsxMerger.Render(Stream, Stream, …)` and `RenderToArray(…)` are also available.
 
+## Template generation
+
+`TemplateGenerator` builds ready-to-use templates from a `TemplateSpec` — useful when the
+data columns are only known at runtime (e.g. generated from a data file):
+
+```csharp
+var spec = new TemplateSpec();
+spec.GlobalHints.Add("COURSE");                 // hint row under the title
+
+var sheet = new TemplateSheetSpec { Name = "Session 1" };
+sheet.Columns.Add(new TemplateColumnSpec       // frozen identity columns
+    { Field = "EMPLOYEE_ID", Label = "ID", Element = "People", Identity = true });
+sheet.Columns.Add(new TemplateColumnSpec
+    { Field = "SCORE", Label = "Score", Element = "Result", Group = "Session 1" });
+spec.Sheets.Add(sheet);
+
+TemplateGenerator.GenerateFile(spec, "template.xlsx");
+```
+
+Each sheet gets: a title row, an optional global-fields hint row, merged element headers,
+merged **column-group headers with a collapsible Excel outline** (one group per `Group`
+label), field labels, and a marker row holding every row field — ready to be expanded by
+`XlsxMerger`. The layout is self-contained (no dependency on any existing template).
+
 ## CLI
 
 ```bash
@@ -118,7 +148,6 @@ behaviour of the whole pipeline on a neutral use case (a training attendance she
 
 ## Known limitations
 
-- every worksheet of the template must contain a marker row (otherwise an explicit error);
 - ClosedXML rewrites the file: template-specific binary metadata (print settings, …) may
   be regenerated;
 - the internal formatting of **multi-run rich text** is not preserved when replacing the

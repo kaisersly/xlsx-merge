@@ -65,13 +65,22 @@ public class MarkerDetectionTests
     }
 
     [Fact]
-    public void No_row_field_returns_a_clear_error()
+    public void No_row_field_means_no_repeatable_block()
     {
         var template = SheetWith(sheet => sheet.Cell(3, 1).Value = "Free text");
 
-        var exception = Assert.Throws<MergeException>(() =>
+        // No row field at all: no block, the sheet only gets its global fields.
+        Assert.Null(
             RowExpander.DetectMarkerRow(template.Worksheet("Sheet1"), Array.Empty<string>(), new MergeOptions()));
-        Assert.Contains("--marker", exception.Message);
+    }
+
+    [Fact]
+    public void Sheet_without_any_row_field_means_no_repeatable_block()
+    {
+        var template = SheetWith(sheet => sheet.Cell(3, 1).Value = "Title #COURSE#");
+
+        Assert.Null(RowExpander.DetectMarkerRow(
+            template.Worksheet("Sheet1"), RowFields, new MergeOptions()));
     }
 
     [Fact]

@@ -27,7 +27,7 @@ internal static class RowExpander
     private static readonly XLCellsUsedOptions UsedOptions =
         XLCellsUsedOptions.Contents | XLCellsUsedOptions.NormalFormats;
 
-    public static ExpandedBlock Expand(
+    public static ExpandedBlock? Expand(
         XLWorkbook workbook,
         IXLWorksheet worksheet,
         MergeData data,
@@ -35,25 +35,29 @@ internal static class RowExpander
     {
         var rowFields = data.RowFieldNames;
         var markerRow = DetectMarkerRow(worksheet, rowFields, options);
-        var blockRowCount = ResolveBlockRowCount(worksheet, markerRow, options);
+        if (markerRow is null)
+            return null; // no repeatable block on this sheet: global fields only
+        var marker = markerRow.Value;
+
+        var blockRowCount = ResolveBlockRowCount(worksheet, marker, options);
         var rowCount = data.Rows.Count;
 
         // Columns actually present in the model rows (like ExcelJS did: only existing
         // cells are duplicated).
         var columns = new SortedSet<int>();
         for (var i = 0; i < blockRowCount; i++)
-        foreach (var cell in worksheet.Row(markerRow + i).CellsUsed(UsedOptions))
+        foreach (var cell in worksheet.Row(marker + i).CellsUsed(UsedOptions))
             columns.Add(cell.Address.ColumnNumber);
 
         if (columns.Count == 0)
             throw new MergeException(
-                $"Model row {markerRow} of sheet '{worksheet.Name}' contains no cell.");
+                $"Model row {marker} of sheet '{worksheet.Name}' contains no cell.");
 
         // Merges entirely inside the model block: they are replicated on every generated
         // row (they do not survive the deletion of the model rows).
         bool IsInsideBlock(IXLRange range) =>
-            range.RangeAddress.FirstAddress.RowNumber >= markerRow
-            && range.RangeAddress.LastAddress.RowNumber <= markerRow + blockRowCount - 1;
+            range.RangeAddress.FirstAddress.RowNumber >= marker
+            && range.RangeAddress.LastAddress.RowNumber <= marker + blockRowCount - 1;
 
         var blockMerges = worksheet.MergedRanges
             .Where(IsInsideBlock)
@@ -68,7 +72,7 @@ internal static class RowExpander
         // Heights of the model rows.
         var heights = new double[blockRowCount];
         for (var i = 0; i < blockRowCount; i++)
-            heights[i] = worksheet.Row(markerRow + i).Height;
+            heights[i] = worksheet.Row(marker + i).Height;
 
         // Copy of the model rows into a temporary worksheet: ClosedXML styles are proxies
         // tied to cells, they cannot be "captured" any other way than by copying them.
@@ -81,7 +85,7 @@ internal static class RowExpander
                 foreach (var column in columns)
                 {
                     // Style + value copy (CopyFrom would crash on conditional formats).
-                    var source = worksheet.Cell(markerRow + i, column);
+                    var source = worksheet.Cell(marker + i, column);
                     var target = temporary.Cell(i + 1, column);
                     target.Style = source.Style;
                     if (source.HasFormula)
@@ -95,13 +99,13 @@ internal static class RowExpander
 
             // Insertion of the generated rows above the model rows.
             if (rowCount > 0)
-                worksheet.Row(markerRow).InsertRowsAbove(rowCount);
+                worksheet.Row(marker).InsertRowsAbove(rowCount);
 
             // Fill: values of the marker row, alternating styles (row i ⇒ style of model
             // i % b; row 0 takes the marker row style).
             for (var i = 0; i < rowCount; i++)
             {
-                var targetRowNumber = markerRow + i;
+                var targetRowNumber = marker + i;
                 var template = i % blockRowCount;
                 foreach (var column in columns)
                 {
@@ -120,7 +124,7 @@ internal static class RowExpander
 
             // Deletion of the model rows shifted below the generated block.
             for (var i = 0; i < blockRowCount; i++)
-                worksheet.Row(markerRow + rowCount).Delete();
+                worksheet.Row(marker + rowCount).Delete();
         }
         finally
         {
@@ -135,30 +139,32 @@ internal static class RowExpander
 
             if (merge.FirstRow == merge.LastRow)
             {
-                var relativeRow = merge.FirstRow - markerRow;
+                var relativeRow = merge.FirstRow - marker;
                 for (var i = 0; i < rowCount; i++)
                     worksheet
-                        .Range(markerRow + i + relativeRow, merge.FirstColumn,
-                            markerRow + i + relativeRow, merge.LastColumn)
+                        .Range(marker + i + relativeRow, merge.FirstColumn,
+                            marker + i + relativeRow, merge.LastColumn)
                         .Merge();
             }
             else
             {
                 // Merge spanning several model rows: it applies to the whole generated block.
                 worksheet
-                    .Range(markerRow, merge.FirstColumn, markerRow + rowCount - 1, merge.LastColumn)
+                    .Range(marker, merge.FirstColumn, marker + rowCount - 1, merge.LastColumn)
                     .Merge();
             }
         }
 
-        return new ExpandedBlock(markerRow, rowCount);
+        return new ExpandedBlock(marker, rowCount);
     }
 
     /// <summary>
     /// Detects the marker row: when a marker field is forced, the row containing it;
     /// otherwise the row containing the largest number of distinct row fields.
+    /// Returns <c>null</c> when the sheet holds no row field at all — the sheet then
+    /// only gets its global fields substituted (no repeatable block).
     /// </summary>
-    internal static int DetectMarkerRow(
+    internal static int? DetectMarkerRow(
         IXLWorksheet worksheet,
         IReadOnlyList<string> rowFields,
         MergeOptions options)
@@ -177,9 +183,7 @@ internal static class RowExpander
         }
 
         if (rowFields.Count == 0)
-            throw new MergeException(
-                $"No row field available to locate the repeatable block of sheet '{worksheet.Name}'. " +
-                "Set the marker field (MergeOptions.RowMarkerField, or --marker on the CLI).");
+            return null; // no row field defined: nothing to repeat anywhere
 
         var fieldSet = new HashSet<string>(rowFields, StringComparer.Ordinal);
         var counts = new Dictionary<int, HashSet<string>>();
@@ -206,10 +210,7 @@ internal static class RowExpander
         }
 
         if (counts.Count == 0)
-            throw new MergeException(
-                $"Sheet '{worksheet.Name}' does not contain any row with a row field " +
-                $"(expected fields, e.g. {Preview(rowFields)}). " +
-                "Cannot locate the repeatable block: set the marker field (--marker).");
+            return null; // sheet without marker row: global fields only
 
         var max = counts.Values.Max(set => set.Count);
         var candidates = counts.Where(pair => pair.Value.Count == max).Select(pair => pair.Key).OrderBy(x => x).ToList();
@@ -269,10 +270,6 @@ internal static class RowExpander
 
         return rows;
     }
-
-    private static string Preview(IReadOnlyList<string> fields) =>
-        string.Join(", ", fields.Take(3).Select(field => $"#{field}#"))
-        + (fields.Count > 3 ? "…" : string.Empty);
 
     private static string CreateTemporaryWorksheet(XLWorkbook workbook)
     {

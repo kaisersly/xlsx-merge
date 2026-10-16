@@ -150,4 +150,54 @@ public class RowExpanderTests
         Assert.True(sheet.Cell(4, 1).Value.IsBlank);
         Assert.Equal("Footer", sheet.Cell(5, 1).GetString());
     }
+
+    [Fact]
+    public void Sheet_without_marker_row_gets_only_global_fields()
+    {
+        var template = new XLWorkbook();
+        var block = template.Worksheets.Add("Block");
+        block.Cell(1, 1).Value = "Title #COURSE#";
+        block.Cell(3, 1).Value = "#ID#";
+        block.Cell(3, 2).Value = "#NAME#";
+
+        // A sheet without any row field (cover page): no repeatable block expected.
+        var cover = template.Worksheets.Add("Cover");
+        cover.Cell(1, 1).Value = "#COURSE# — cover";
+        cover.Cell(2, 1).Value = "Contact: #UNKNOWN#";
+        cover.Cell(4, 1).Value = "Free text";
+
+        var data = new MergeData()
+            .AddGlobal("COURSE", "Excel")
+            .AddRow(new Dictionary<string, object?> { ["ID"] = "1", ["NAME"] = "Alice" });
+
+        using var workbook = TestHelpers.RenderAndLoad(template, data);
+
+        var renderedBlock = workbook.Worksheet("Block");
+        Assert.Equal("Title Excel", renderedBlock.Cell(1, 1).GetString());
+        Assert.Equal("1", renderedBlock.Cell(3, 1).GetString());
+        Assert.Equal("Alice", renderedBlock.Cell(3, 2).GetString());
+
+        var renderedCover = workbook.Worksheet("Cover");
+        Assert.Equal("Excel — cover", renderedCover.Cell(1, 1).GetString());
+        // Unknown field left as-is, structure untouched (no block expansion).
+        Assert.Equal("Contact: #UNKNOWN#", renderedCover.Cell(2, 1).GetString());
+        Assert.Equal("Free text", renderedCover.Cell(4, 1).GetString());
+        Assert.Equal(4, renderedCover.LastRowUsed(XLCellsUsedOptions.Contents | XLCellsUsedOptions.NormalFormats)!.RowNumber());
+    }
+
+    [Fact]
+    public void No_row_field_defined_keeps_the_template_block_untouched()
+    {
+        // Data with globals only (no row fields at all): the marker row cannot be
+        // detected, so nothing is expanded nor removed — unknown fields stay visible.
+        var template = BuildTemplate();
+        var data = new MergeData().AddGlobal("COURSE", "Excel");
+
+        using var workbook = TestHelpers.RenderAndLoad(template, data);
+        var sheet = workbook.Worksheet("Sheet1");
+
+        Assert.Equal("Title Excel", sheet.Cell(1, 1).GetString());
+        Assert.Equal("#ID#", sheet.Cell(3, 1).GetString());
+        Assert.Equal("Footer", sheet.Cell(5, 1).GetString());
+    }
 }
