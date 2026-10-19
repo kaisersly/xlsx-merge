@@ -126,7 +126,12 @@ TemplateGenerator.GenerateFile(spec, "template.xlsx");
 Each sheet gets: a title row, an optional global-fields hint row, merged element headers,
 merged **column-group headers with a collapsible Excel outline** (one group per `Group`
 label), field labels, and a marker row holding every row field — ready to be expanded by
-`XlsxMerger`. The layout is self-contained (no dependency on any existing template).
+`XlsxMerger`.
+
+Field labels of **non-identity columns are rotated up** (« Rotate Text Up »,
+`textRotation` 90°): long labels no longer dictate the column width (the field does),
+and the label row automatically grows to keep them readable. Identity columns stay
+horizontal. The layout is self-contained (no dependency on any existing template).
 
 ## CLI
 

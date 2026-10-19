@@ -63,14 +63,20 @@ public class TemplateGeneratorTests
         // Row 4: group runs (merged).
         Assert.Equal("Session 1", sheet.Cell(4, 3).GetString());
         Assert.Equal("Session 2", sheet.Cell(4, 4).GetString());
-        // Row 5: labels.
+        // Row 5: labels — non-identity headers rotated up, identity horizontal.
         Assert.Equal("Identifier", sheet.Cell(5, 1).GetString());
         Assert.Equal("Score", sheet.Cell(5, 3).GetString());
+        Assert.Equal(0, sheet.Cell(5, 1).Style.Alignment.TextRotation);
+        Assert.Equal(90, sheet.Cell(5, 3).Style.Alignment.TextRotation);
+        Assert.Equal(90, sheet.Cell(5, 4).Style.Alignment.TextRotation);
+        // The label row grows so the rotated labels are fully readable.
+        Assert.True(sheet.Row(5).Height > 30, $"height={sheet.Row(5).Height}");
         // Row 6: marker row — every row field wrapped in #.
         Assert.Equal("#ID#", sheet.Cell(6, 1).GetString());
         Assert.Equal("#NAME#", sheet.Cell(6, 2).GetString());
         Assert.Equal("#SCORE#", sheet.Cell(6, 3).GetString());
         Assert.Equal("#GRADE#", sheet.Cell(6, 4).GetString());
+        Assert.Equal(0, sheet.Cell(6, 3).Style.Alignment.TextRotation);
         Assert.Equal(6, sheet.LastRowUsed(XLCellsUsedOptions.Contents)!.RowNumber());
     }
 
@@ -148,6 +154,35 @@ public class TemplateGeneratorTests
         Assert.Equal("2", sheet.Cell(7, 1).GetString());
         Assert.Equal("Bob", sheet.Cell(7, 2).GetString());
         Assert.Equal("C", sheet.Cell(7, 4).GetString());
+    }
+
+    [Fact]
+    public void Rotated_labels_stretch_the_row_but_not_the_columns()
+    {
+        var spec = new TemplateSpec();
+        var sheet = new TemplateSheetSpec { Name = "Rotate" };
+        sheet.Columns.Add(new TemplateColumnSpec
+        {
+            Field = "ID", Label = "Identifier", Identity = true,
+        });
+        sheet.Columns.Add(new TemplateColumnSpec
+        {
+            Field = "SCORE", Label = "A very long column label for rotation",
+        });
+        spec.Sheets.Add(sheet);
+
+        using var workbook = Generate(spec);
+        var ws = workbook.Worksheet("Rotate");
+
+        // Layout without hints/element/group rows: row 1 title, row 2 labels, row 3 marker.
+        Assert.Equal(90, ws.Cell(2, 2).Style.Alignment.TextRotation);
+        Assert.Equal(0, ws.Cell(2, 1).Style.Alignment.TextRotation);
+        Assert.Equal(0, ws.Cell(3, 2).Style.Alignment.TextRotation);
+
+        // The long rotated label no longer widens its column (width comes from the field)…
+        Assert.True(ws.Column(2).Width < 20, $"width={ws.Column(2).Width}");
+        // …but the label row grows to read it.
+        Assert.True(ws.Row(2).Height >= 200, $"height={ws.Row(2).Height}");
     }
 
     [Fact]

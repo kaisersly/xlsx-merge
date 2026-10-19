@@ -15,6 +15,9 @@ namespace XlsxMerge;
 /// </summary>
 public static class TemplateGenerator
 {
+    /// <summary>OOXML <c>textRotation</c> 90° counterclockwise = « Rotate Text Up ».</summary>
+    private const int TextRotationUp = 90;
+
     private static readonly XLColor TitleFill = XLColor.FromHtml("#1F4E79");
     private static readonly XLColor ElementFill = XLColor.FromHtml("#DDEBF7");
     private static readonly XLColor GroupFill = XLColor.FromHtml("#BDD7EE");
@@ -138,21 +141,33 @@ public static class TemplateGenerator
             row++;
         }
 
-        // Field labels.
+        // Field labels. Headers of non-identity columns are rotated up (« Rotation du
+        // texte vers le haut », OOXML textRotation 90° counterclockwise) so a long label
+        // does not dictate the column width; the label row grows to fit the longest one.
+        var rotatedLabelLength = 0;
         for (var i = 0; i < count; i++)
         {
             var cell = ws.Cell(row, i + 1);
             var column = columns[i];
-            cell.Value = string.IsNullOrWhiteSpace(column.Label) ? column.Field : column.Label;
+            var label = string.IsNullOrWhiteSpace(column.Label) ? column.Field : column.Label!;
+            cell.Value = label;
             cell.Style.Font.Italic = true;
             cell.Style.Font.FontColor = XLColor.FromHtml("#374151");
             cell.Style.Fill.BackgroundColor = LabelFill;
             cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             cell.Style.Alignment.WrapText = true;
             cell.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+            if (!column.Identity)
+            {
+                cell.Style.Alignment.TextRotation = TextRotationUp;
+                rotatedLabelLength = Math.Max(rotatedLabelLength, label.Length);
+            }
         }
 
-        ws.Row(row).Height = 30;
+        // A rotated label is read along the row height: grow the row to fit it.
+        ws.Row(row).Height = rotatedLabelLength == 0
+            ? 30
+            : Math.Max(30, Math.Clamp(rotatedLabelLength * 7.0 + 6, 40, 300));
         row++;
 
         // Marker row — every row field, which is what the merger detects.
@@ -189,6 +204,8 @@ public static class TemplateGenerator
         {
             var column = columns[i];
             var labelLength = (string.IsNullOrWhiteSpace(column.Label) ? column.Field : column.Label!).Length;
+            if (!column.Identity)
+                labelLength = 0; // rotated label: it no longer dictates the width
             var fieldLength = $"#{MergeFields.NormalizeKey(column.Field)}#".Length;
             ws.Column(i + 1).Width = Math.Clamp(Math.Max(labelLength, fieldLength) + 3, 10, 34);
         }
