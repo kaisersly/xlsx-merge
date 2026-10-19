@@ -198,8 +198,9 @@ public static class TemplateGenerator
         block.Style.Border.SetOutsideBorderColor(GridColor);
         block.Style.Border.SetInsideBorderColor(GridColor);
 
-        // Freezing: header rows stay visible, then the leading identity columns.
-        ws.SheetView.FreezeRows(markerRow);
+        // Freezing: only the rows ABOVE the marker row stay visible — the marker row
+        // itself becomes the first data row after a merge and must scroll normally.
+        ws.SheetView.FreezeRows(markerRow - 1);
         var identityColumns = 0;
         while (identityColumns < count && columns[identityColumns].Identity)
             identityColumns++;

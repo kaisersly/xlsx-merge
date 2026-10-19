@@ -105,8 +105,9 @@ public class TemplateGeneratorTests
         Assert.Equal(0, sheet.Column(1).OutlineLevel);
         Assert.Equal(0, sheet.Column(2).OutlineLevel);
 
-        // Header block (6 rows) + 2 identity columns frozen.
-        Assert.Equal(6, sheet.SheetView.SplitRow);
+        // Only the 5 header rows above the marker (row 6 = first data row) are frozen;
+        // 2 identity columns frozen as well.
+        Assert.Equal(5, sheet.SheetView.SplitRow);
         Assert.Equal(2, sheet.SheetView.SplitColumn);
     }
 
@@ -120,7 +121,7 @@ public class TemplateGeneratorTests
         // No element row: row 2 = hints, row 3 = groups, row 4 = labels, row 5 = marker.
         Assert.Equal("Session 1", sheet.Cell(3, 2).GetString());
         Assert.Equal("#SCORE#", sheet.Cell(4 + 1, 2).GetString());
-        Assert.Equal(5, sheet.SheetView.SplitRow);
+        Assert.Equal(4, sheet.SheetView.SplitRow);
         Assert.Equal(1, sheet.Column(2).OutlineLevel);
         Assert.Equal(0, sheet.Column(1).OutlineLevel);
     }
