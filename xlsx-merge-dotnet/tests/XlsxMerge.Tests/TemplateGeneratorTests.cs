@@ -60,6 +60,13 @@ public class TemplateGeneratorTests
         Assert.Equal("Result", sheet.Cell(3, 3).GetString());
         Assert.True(TestHelpers.IsMerged(sheet, 3, 1, 3, 2));
         Assert.True(TestHelpers.IsMerged(sheet, 3, 3, 3, 4));
+        // Element titles rotated up except the identity run (« Identification »… well,
+        // here the identity run is « People »), and the row grows to fit them.
+        Assert.Equal(0, sheet.Cell(3, 1).Style.Alignment.TextRotation);
+        Assert.Equal(90, sheet.Cell(3, 3).Style.Alignment.TextRotation);
+        Assert.True(sheet.Row(3).Height > 20, $"element row height={sheet.Row(3).Height}");
+        // The session/group row (row 4) stays flat.
+        Assert.Equal(0, sheet.Cell(4, 3).Style.Alignment.TextRotation);
         // Row 4: group runs (merged).
         Assert.Equal("Session 1", sheet.Cell(4, 3).GetString());
         Assert.Equal("Session 2", sheet.Cell(4, 4).GetString());
@@ -78,6 +85,12 @@ public class TemplateGeneratorTests
         Assert.Equal("#GRADE#", sheet.Cell(6, 4).GetString());
         Assert.Equal(0, sheet.Cell(6, 3).Style.Alignment.TextRotation);
         Assert.Equal(6, sheet.LastRowUsed(XLCellsUsedOptions.Contents)!.RowNumber());
+
+        // Identity column: content-driven width (label « Identifier » = 10 + 3).
+        Assert.Equal(13d, sheet.Column(1).Width);
+        // Non-identity columns: fixed narrow width.
+        Assert.Equal(4d, sheet.Column(3).Width);
+        Assert.Equal(4d, sheet.Column(4).Width);
     }
 
     [Fact]
@@ -179,8 +192,10 @@ public class TemplateGeneratorTests
         Assert.Equal(0, ws.Cell(2, 1).Style.Alignment.TextRotation);
         Assert.Equal(0, ws.Cell(3, 2).Style.Alignment.TextRotation);
 
-        // The long rotated label no longer widens its column (width comes from the field)…
-        Assert.True(ws.Column(2).Width < 20, $"width={ws.Column(2).Width}");
+        // Non-identity column: fixed width 4 (was previously driven by the field).
+        Assert.Equal(4d, ws.Column(2).Width);
+        // Identity column keeps a content-driven width.
+        Assert.True(ws.Column(1).Width > 4, $"width={ws.Column(1).Width}");
         // …but the label row grows to read it.
         Assert.True(ws.Row(2).Height >= 200, $"height={ws.Row(2).Height}");
     }

@@ -119,10 +119,17 @@ public static class TemplateGenerator
         }
 
         // Element header row (merged runs), when at least one column has an element.
+        // Same treatment as the field labels: every run that is not purely identity is
+        // rotated up (« Rotate Text Up ») and the row grows to fit the longest title;
+        // the identity run (« Identification ») stays flat.
         if (columns.Any(c => !string.IsNullOrEmpty(c.Element)))
         {
-            WriteRuns(ws, row, columns, c => c.Element, ElementFill, bold: true);
-            ws.Row(row).Height = 20;
+            var maxRotatedElement = WriteRuns(
+                ws, row, columns, c => c.Element, ElementFill, bold: true,
+                rotateNonIdentityRuns: true);
+            ws.Row(row).Height = maxRotatedElement == 0
+                ? 20
+                : Math.Max(20, Math.Clamp(maxRotatedElement * 7.0 + 6, 40, 300));
             row++;
         }
 
@@ -203,24 +210,34 @@ public static class TemplateGenerator
         for (var i = 0; i < count; i++)
         {
             var column = columns[i];
-            var labelLength = (string.IsNullOrWhiteSpace(column.Label) ? column.Field : column.Label!).Length;
             if (!column.Identity)
-                labelLength = 0; // rotated label: it no longer dictates the width
+            {
+                // Rotated headers: fixed narrow width.
+                ws.Column(i + 1).Width = 4;
+                continue;
+            }
+            var labelLength = (string.IsNullOrWhiteSpace(column.Label) ? column.Field : column.Label!).Length;
             var fieldLength = $"#{MergeFields.NormalizeKey(column.Field)}#".Length;
             ws.Column(i + 1).Width = Math.Clamp(Math.Max(labelLength, fieldLength) + 3, 10, 34);
         }
     }
 
-    /// <summary>Sets one merged (or single) horizontal run and its value/style.</summary>
-    private static IXLRange WriteRuns(
+    /// <summary>
+    /// Sets one merged (or single) run of headers and its value/style. When
+    /// <paramref name="rotateNonIdentityRuns"/> is set, runs that are not purely
+    /// identity are rotated up (« Rotate Text Up »); returns the length of the longest
+    /// rotated label (0 when nothing was rotated) so the caller can size the row.
+    /// </summary>
+    private static int WriteRuns(
         IXLWorksheet ws,
         int row,
         IList<TemplateColumnSpec> columns,
         Func<TemplateColumnSpec, string?> selector,
         XLColor fill,
-        bool bold)
+        bool bold,
+        bool rotateNonIdentityRuns = false)
     {
-        IXLRange? firstRange = null;
+        var maxRotatedLabelLength = 0;
         foreach (var run in ContiguousRuns(columns, selector))
         {
             if (string.IsNullOrEmpty(run.Label))
@@ -235,10 +252,23 @@ public static class TemplateGenerator
             range.Style.Font.Bold = bold;
             range.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
             range.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
-            firstRange ??= range;
+            if (rotateNonIdentityRuns && !RunIsIdentity(columns, run))
+            {
+                range.Style.Alignment.TextRotation = TextRotationUp;
+                maxRotatedLabelLength = Math.Max(maxRotatedLabelLength, run.Label.Length);
+            }
         }
 
-        return firstRange ?? ws.Range(row, 1, row, columns.Count);
+        return maxRotatedLabelLength;
+    }
+
+    /// <summary>True when every column of the run is an identity column.</summary>
+    private static bool RunIsIdentity(IList<TemplateColumnSpec> columns, Run run)
+    {
+        for (var column = run.First; column <= run.Last; column++)
+        if (!columns[column - 1].Identity)
+            return false;
+        return true;
     }
 
     private readonly record struct Run(int First, int Last, string? Label);
