@@ -202,6 +202,33 @@ public class TemplateGeneratorTests
     }
 
     [Fact]
+    public void Page_setup_narrow_landscape_fitted_and_header_rows_repeated()
+    {
+        using var workbook = Generate(BuildSpec());
+        var sheet = workbook.Worksheet("Group A"); // rows 1..5 = header, marker = 6
+
+        Assert.Equal(XLPageOrientation.Landscape, sheet.PageSetup.PageOrientation);
+        // All columns on one page wide (height as needed).
+        Assert.Equal(1, sheet.PageSetup.PagesWide);
+        Assert.Equal(0, sheet.PageSetup.PagesTall);
+        // Narrow margins (inches).
+        Assert.Equal(0.25d, sheet.PageSetup.Margins.Left);
+        Assert.Equal(0.25d, sheet.PageSetup.Margins.Right);
+        Assert.Equal(0.25d, sheet.PageSetup.Margins.Top);
+        Assert.Equal(0.25d, sheet.PageSetup.Margins.Bottom);
+        Assert.Equal(0.2d, sheet.PageSetup.Margins.Header);
+        Assert.Equal(0.2d, sheet.PageSetup.Margins.Footer);
+        // Header rows (1..5, above the marker) repeat on every printed page.
+        Assert.Equal(1, sheet.PageSetup.FirstRowToRepeatAtTop);
+        Assert.Equal(5, sheet.PageSetup.LastRowToRepeatAtTop);
+
+        // Second sheet: no element row ⇒ its header block ends at row 4.
+        var second = workbook.Worksheet("All groups");
+        Assert.Equal(XLPageOrientation.Landscape, second.PageSetup.PageOrientation);
+        Assert.Equal(4, second.PageSetup.LastRowToRepeatAtTop);
+    }
+
+    [Fact]
     public void Validation_errors()
     {
         var empty = new TemplateSpec();

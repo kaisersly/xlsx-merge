@@ -18,6 +18,12 @@ public static class TemplateGenerator
     /// <summary>OOXML <c>textRotation</c> 90° counterclockwise = « Rotate Text Up ».</summary>
     private const int TextRotationUp = 90;
 
+    /// <summary>Narrow margins, in inches (¼ in ≈ 6 mm) — ClosedXML margins use inches.</summary>
+    private const double NarrowMargin = 0.25;
+
+    /// <summary>Header/footer margin, slightly tighter than the top/bottom one.</summary>
+    private const double HeaderFooterMargin = 0.2;
+
     private static readonly XLColor TitleFill = XLColor.FromHtml("#1F4E79");
     private static readonly XLColor ElementFill = XLColor.FromHtml("#DDEBF7");
     private static readonly XLColor GroupFill = XLColor.FromHtml("#BDD7EE");
@@ -221,6 +227,19 @@ public static class TemplateGenerator
             var fieldLength = $"#{MergeFields.NormalizeKey(column.Field)}#".Length;
             ws.Column(i + 1).Width = Math.Clamp(Math.Max(labelLength, fieldLength) + 3, 10, 34);
         }
+
+        // Page setup: narrow margins, landscape, all columns on one page wide (height
+        // as needed) and the header rows repeated on every printed page.
+        ws.PageSetup.PageOrientation = XLPageOrientation.Landscape;
+        ws.PageSetup.FitToPages(1, 0);
+        ws.PageSetup.Margins.Left = NarrowMargin;
+        ws.PageSetup.Margins.Right = NarrowMargin;
+        ws.PageSetup.Margins.Top = NarrowMargin;
+        ws.PageSetup.Margins.Bottom = NarrowMargin;
+        ws.PageSetup.Margins.Header = HeaderFooterMargin;
+        ws.PageSetup.Margins.Footer = HeaderFooterMargin;
+        if (markerRow > 1)
+            ws.PageSetup.SetRowsToRepeatAtTop(1, markerRow - 1);
     }
 
     /// <summary>
